@@ -3,15 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 
 	"database/sql"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/annoying-orange/ecp-api/graph"
-	"github.com/annoying-orange/ecp-api/graph/generated"
 )
 
 const (
@@ -53,11 +49,12 @@ func main() {
 
 	log.Printf("Connected to %s", dsn)
 
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{DB: db}}))
+	// Start service
+	s, err := graph.NewResolver(db)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	http.Handle("/playground", playground.Handler("GraphQL playground", "/"))
-	http.Handle("/", srv)
-
-	log.Printf("connect to http://localhost:%s/playground for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Printf("\nconnect to http://localhost:%s/playground for GraphQL playground", port)
+	log.Fatal(s.Serve("/", port))
 }

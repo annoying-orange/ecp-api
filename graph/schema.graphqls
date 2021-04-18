@@ -1,0 +1,85 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+scalar Map
+
+type Account {
+  id: ID!
+  name: String
+  address: String!
+  code: String
+  referrals: [String!]
+}
+
+type Invite {
+  address: String!
+  link: String!
+}
+
+type Referral {
+  address: String!
+  totalJoined: Int!
+  referralEarn: Float!
+  data: [Float!]
+}
+
+type Transaction {
+  blockNumber: String!
+  timeStamp: String!
+  hash: String!
+  nonce: String!
+  blockHash: String!
+  from: String!
+  contractAddress: String!
+  to: String!
+  value: String!
+  tokenName: String!
+  tokenSymbol: String!
+  tokenDecimal: String!
+  transactionIndex: String!
+  gas: String!
+  gasPrice: String!
+  gasUsed: String!
+  cumulativeGasUsed: String!
+  input: String!
+  confirmations: String!
+}
+
+type Query {
+  account(address: String!): Account!
+  invite(address: String!): Invite!
+  referral(address: String): Referral!
+}
+
+input NewAccount {
+  address: String!
+  inviteCode: String
+}
+
+input NewTransaction {
+  blockNumber: String!
+  timeStamp: String!
+  hash: String!
+  nonce: String!
+  blockHash: String!
+  from: String!
+  contractAddress: String!
+  to: String!
+  value: String!
+  tokenName: String!
+  tokenSymbol: String!
+  tokenDecimal: String!
+  transactionIndex: String!
+  gas: String!
+  gasPrice: String!
+  gasUsed: String!
+  cumulativeGasUsed: String!
+  input: String!
+  confirmations: String!
+}
+
+type Mutation {
+  createAccount(input: NewAccount!): Account!
+  createTransaction(input: NewTransaction!): Transaction!
+}

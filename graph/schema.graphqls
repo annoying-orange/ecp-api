@@ -19,8 +19,9 @@ type Invite {
 
 type Referral {
   address: String!
-  totalJoined: Int!
-  referralEarn: Float!
+  joined: Int!
+  earn: Float!
+  labels: [String!]
   data: [Float!]
 }
 
@@ -49,7 +50,7 @@ type Transaction {
 type Query {
   account(address: String!): Account!
   invite(address: String!): Invite!
-  referral(address: String): Referral!
+  referral(address: String, days: Int!): Referral!
 }
 
 input NewAccount {

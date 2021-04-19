@@ -64,14 +64,15 @@ type ComplexityRoot struct {
 	Query struct {
 		Account  func(childComplexity int, address string) int
 		Invite   func(childComplexity int, address string) int
-		Referral func(childComplexity int, address *string) int
+		Referral func(childComplexity int, address *string, days int) int
 	}
 
 	Referral struct {
-		Address      func(childComplexity int) int
-		Data         func(childComplexity int) int
-		ReferralEarn func(childComplexity int) int
-		TotalJoined  func(childComplexity int) int
+		Address func(childComplexity int) int
+		Data    func(childComplexity int) int
+		Earn    func(childComplexity int) int
+		Joined  func(childComplexity int) int
+		Labels  func(childComplexity int) int
 	}
 
 	Transaction struct {
@@ -104,7 +105,7 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Account(ctx context.Context, address string) (*model.Account, error)
 	Invite(ctx context.Context, address string) (*model.Invite, error)
-	Referral(ctx context.Context, address *string) (*model.Referral, error)
+	Referral(ctx context.Context, address *string, days int) (*model.Referral, error)
 }
 
 type executableSchema struct {
@@ -229,7 +230,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Referral(childComplexity, args["address"].(*string)), true
+		return e.complexity.Query.Referral(childComplexity, args["address"].(*string), args["days"].(int)), true
 
 	case "Referral.address":
 		if e.complexity.Referral.Address == nil {
@@ -245,19 +246,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Referral.Data(childComplexity), true
 
-	case "Referral.referralEarn":
-		if e.complexity.Referral.ReferralEarn == nil {
+	case "Referral.earn":
+		if e.complexity.Referral.Earn == nil {
 			break
 		}
 
-		return e.complexity.Referral.ReferralEarn(childComplexity), true
+		return e.complexity.Referral.Earn(childComplexity), true
 
-	case "Referral.totalJoined":
-		if e.complexity.Referral.TotalJoined == nil {
+	case "Referral.joined":
+		if e.complexity.Referral.Joined == nil {
 			break
 		}
 
-		return e.complexity.Referral.TotalJoined(childComplexity), true
+		return e.complexity.Referral.Joined(childComplexity), true
+
+	case "Referral.labels":
+		if e.complexity.Referral.Labels == nil {
+			break
+		}
+
+		return e.complexity.Referral.Labels(childComplexity), true
 
 	case "Transaction.blockHash":
 		if e.complexity.Transaction.BlockHash == nil {
@@ -477,8 +485,9 @@ type Invite {
 
 type Referral {
   address: String!
-  totalJoined: Int!
-  referralEarn: Float!
+  joined: Int!
+  earn: Float!
+  labels: [String!]
   data: [Float!]
 }
 
@@ -507,7 +516,7 @@ type Transaction {
 type Query {
   account(address: String!): Account!
   invite(address: String!): Invite!
-  referral(address: String): Referral!
+  referral(address: String, days: Int!): Referral!
 }
 
 input NewAccount {
@@ -636,6 +645,15 @@ func (ec *executionContext) field_Query_referral_args(ctx context.Context, rawAr
 		}
 	}
 	args["address"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["days"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("days"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["days"] = arg1
 	return args, nil
 }
 
@@ -1106,7 +1124,7 @@ func (ec *executionContext) _Query_referral(ctx context.Context, field graphql.C
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Referral(rctx, args["address"].(*string))
+		return ec.resolvers.Query().Referral(rctx, args["address"].(*string), args["days"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1229,7 +1247,7 @@ func (ec *executionContext) _Referral_address(ctx context.Context, field graphql
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Referral_totalJoined(ctx context.Context, field graphql.CollectedField, obj *model.Referral) (ret graphql.Marshaler) {
+func (ec *executionContext) _Referral_joined(ctx context.Context, field graphql.CollectedField, obj *model.Referral) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1247,7 +1265,7 @@ func (ec *executionContext) _Referral_totalJoined(ctx context.Context, field gra
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.TotalJoined, nil
+		return obj.Joined, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1264,7 +1282,7 @@ func (ec *executionContext) _Referral_totalJoined(ctx context.Context, field gra
 	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Referral_referralEarn(ctx context.Context, field graphql.CollectedField, obj *model.Referral) (ret graphql.Marshaler) {
+func (ec *executionContext) _Referral_earn(ctx context.Context, field graphql.CollectedField, obj *model.Referral) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1282,7 +1300,7 @@ func (ec *executionContext) _Referral_referralEarn(ctx context.Context, field gr
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.ReferralEarn, nil
+		return obj.Earn, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1297,6 +1315,38 @@ func (ec *executionContext) _Referral_referralEarn(ctx context.Context, field gr
 	res := resTmp.(float64)
 	fc.Result = res
 	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Referral_labels(ctx context.Context, field graphql.CollectedField, obj *model.Referral) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Referral",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Labels, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalOString2ᚕstringᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Referral_data(ctx context.Context, field graphql.CollectedField, obj *model.Referral) (ret graphql.Marshaler) {
@@ -3477,16 +3527,18 @@ func (ec *executionContext) _Referral(ctx context.Context, sel ast.SelectionSet,
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "totalJoined":
-			out.Values[i] = ec._Referral_totalJoined(ctx, field, obj)
+		case "joined":
+			out.Values[i] = ec._Referral_joined(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "referralEarn":
-			out.Values[i] = ec._Referral_referralEarn(ctx, field, obj)
+		case "earn":
+			out.Values[i] = ec._Referral_earn(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "labels":
+			out.Values[i] = ec._Referral_labels(ctx, field, obj)
 		case "data":
 			out.Values[i] = ec._Referral_data(ctx, field, obj)
 		default:

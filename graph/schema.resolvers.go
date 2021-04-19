@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 
 	"github.com/annoying-orange/ecp-api/graph/generated"
 	"github.com/annoying-orange/ecp-api/graph/model"
@@ -168,12 +169,68 @@ func (r *queryResolver) Invite(ctx context.Context, address string) (*model.Invi
 	}, nil
 }
 
-func (r *queryResolver) Referral(ctx context.Context, address *string) (*model.Referral, error) {
+func (r *queryResolver) Referral(ctx context.Context, address *string, days int) (*model.Referral, error) {
+	// Query total joined
+	var joined int
+	err := r.DB.QueryRow("SELECT COUNT(1) AS joined FROM ecp.account a WHERE JSON_EXTRACT(a.referrals, '$[0]') = ?", address).
+		Scan(&joined)
+	if err != nil {
+		return nil, err
+	}
+
+	// Query earn amount
+	var earn float64
+	err = r.DB.QueryRow("SELECT SUM(e.amount) AS earn FROM referral_earn e WHERE address = ?", address).
+		Scan(&earn)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Query earn by date within specified days
+	query := "SELECT r.date, SUM(r.amount) AS amount FROM" +
+		" (SELECT DATE_FORMAT(FROM_UNIXTIME(time_stamp), '%m-%d') AS date, amount FROM referral_earn WHERE address = ?" +
+		" AND DATEDIFF(UTC_TIMESTAMP(), FROM_UNIXTIME(time_stamp)) <= ?) r" +
+		" GROUP BY r.date ORDER BY r.date DESC"
+	results, err := r.DB.Query(query, address, days)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var labels []string
+	var data []float64
+	now := time.Now()
+	var i int
+
+	for i = 0; i < days; i++ {
+		labels = append(labels, now.Add(time.Hour*time.Duration(-24*i)).Format("01-02"))
+		data = append(data, 0)
+	}
+
+	i = 0
+	for results.Next() {
+		var date string
+		var amount float64
+		err = results.Scan(&date, &amount)
+		if err != nil {
+			panic(err)
+		}
+
+		for ; i < len(labels); i++ {
+			if labels[i] == date {
+				data[i] = amount
+				break
+			}
+		}
+	}
+
 	return &model.Referral{
-		Address:      *address,
-		TotalJoined:  394,
-		ReferralEarn: 548.49,
-		Data:         []float64{110, 80, 125, 55, 95, 75, 90, 110, 80, 125, 55, 95, 75, 90, 110, 80, 125, 55, 95, 75, 90, 110, 80, 125, 55, 95, 75, 90, 75, 90},
+		Address: *address,
+		Joined:  joined,
+		Earn:    earn,
+		Labels:  labels,
+		Data:    data,
 	}, nil
 }
 

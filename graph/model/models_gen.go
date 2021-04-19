@@ -43,10 +43,11 @@ type NewTransaction struct {
 }
 
 type Referral struct {
-	Address      string    `json:"address"`
-	TotalJoined  int       `json:"totalJoined"`
-	ReferralEarn float64   `json:"referralEarn"`
-	Data         []float64 `json:"data"`
+	Address string    `json:"address"`
+	Joined  int       `json:"joined"`
+	Earn    float64   `json:"earn"`
+	Labels  []string  `json:"labels"`
+	Data    []float64 `json:"data"`
 }
 
 type Transaction struct {

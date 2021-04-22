@@ -170,6 +170,26 @@ func (r *queryResolver) Invite(ctx context.Context, address string) (*model.Invi
 }
 
 func (r *queryResolver) Referral(ctx context.Context, address *string, days int) (*model.Referral, error) {
+	var labels []string
+	var data []float64
+	now := time.Now()
+	var i int
+
+	for i = 0; i < days; i++ {
+		labels = append(labels, now.Add(time.Hour*time.Duration(-24*i)).Format("01-02"))
+		data = append(data, 0)
+	}
+
+	if address == nil || *address == "" {
+		return &model.Referral{
+			Address: "",
+			Joined:  0,
+			Earn:    0,
+			Labels:  labels,
+			Data:    data,
+		}, nil
+	}
+
 	// Query total joined
 	var joined int
 	err := r.DB.QueryRow("SELECT COUNT(1) AS joined FROM ecp.account a WHERE JSON_EXTRACT(a.referrals, '$[0]') = ?", address).
@@ -180,7 +200,7 @@ func (r *queryResolver) Referral(ctx context.Context, address *string, days int)
 
 	// Query earn amount
 	var earn float64
-	err = r.DB.QueryRow("SELECT SUM(e.amount) AS earn FROM referral_earn e WHERE address = ?", address).
+	err = r.DB.QueryRow("SELECT IFNULL(SUM(e.amount), 0) AS earn FROM referral_earn e WHERE address = ?", address).
 		Scan(&earn)
 
 	if err != nil {
@@ -196,16 +216,6 @@ func (r *queryResolver) Referral(ctx context.Context, address *string, days int)
 
 	if err != nil {
 		return nil, err
-	}
-
-	var labels []string
-	var data []float64
-	now := time.Now()
-	var i int
-
-	for i = 0; i < days; i++ {
-		labels = append(labels, now.Add(time.Hour*time.Duration(-24*i)).Format("01-02"))
-		data = append(data, 0)
 	}
 
 	i = 0

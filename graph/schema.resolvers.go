@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/annoying-orange/ecp-api/graph/generated"
@@ -21,6 +22,10 @@ import (
 )
 
 func (r *mutationResolver) CreateAccount(ctx context.Context, input model.NewAccount) (*model.Account, error) {
+	if addressIsValid(input.Address) {
+		return nil, fmt.Errorf("Valid address")
+	}
+
 	account, err := findAccountByAddress(r.DB, input.Address)
 	if err == nil {
 		return account, nil
@@ -42,9 +47,7 @@ func (r *mutationResolver) CreateAccount(ctx context.Context, input model.NewAcc
 			Scan(&referral.Address, &referral.Referrals)
 
 		if err == nil {
-			if len(referral.Referrals) < 2 {
-				newAccount.Referrals = append(newAccount.Referrals, referral.Address)
-			}
+			newAccount.Referrals = append(newAccount.Referrals, referral.Address)
 			newAccount.Referrals = append(newAccount.Referrals, referral.Referrals...)
 		}
 	}
@@ -74,52 +77,46 @@ func (r *mutationResolver) CreateAccount(ctx context.Context, input model.NewAcc
 }
 
 func (r *mutationResolver) CreateTransaction(ctx context.Context, input model.NewTransaction) (*model.Transaction, error) {
-	// Insert transaction
-	res, err := r.DB.Exec(
-		"INSERT INTO transaction(block_number, time_stamp, hash, nonce, block_hash, `from`, contract_address, `to`"+
-			", value, token_name, token_decimal, token_symbol, transaction_index, gas, gas_price, gas_used"+
-			", cumulative_gas_used, input, confirmations) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		input.BlockNumber,
-		input.TimeStamp,
-		input.Hash,
-		input.Nonce,
-		input.BlockHash,
-		input.From,
-		input.ContractAddress,
-		input.To,
-		input.Value,
-		input.TokenName,
-		input.TokenDecimal,
-		input.TokenSymbol,
-		input.TransactionIndex,
-		input.Gas,
-		input.GasPrice,
-		input.GasUsed,
-		input.CumulativeGasUsed,
-		input.Input,
-		input.Confirmations,
-	)
+	timeStamp := time.Now().Unix()
 
-	if err != nil {
+	// Insert transaction
+	if _, err := r.DB.Exec(
+		"INSERT IGNORE INTO transaction(time_stamp, hash, `from`, `to`) VALUES(?, ?, ?, ?)",
+		timeStamp,
+		input.Hash,
+		input.From,
+		input.To,
+	); err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("Created transaction: %v", res)
+	// Insert token transaction
+	if _, err := r.DB.Exec(
+		"INSERT INTO token_transaction(time_stamp, hash, `from`, `to`, value) VALUES(?, ?, ?, ?, ?)",
+		timeStamp,
+		input.Hash,
+		input.To,
+		input.From,
+		input.Value,
+	); err != nil {
+		return nil, err
+	}
 
-	account, err := findAccountByAddress(r.DB, input.From)
-	if err == nil && len(account.Referrals) > 0 {
-		value, _ := strconv.ParseFloat(input.Value, 10)
-		decimal, _ := strconv.Atoi(input.TokenDecimal)
-		amount := value / math.Pow10(decimal)
+	if account, err := findAccountByAddress(r.DB, input.From); err == nil && len(account.Referrals) > 0 {
+		var amount float64
+
+		if value, err := strconv.ParseFloat(input.Value, 10); err == nil {
+			amount = value / math.Pow10(TOKEN_DECIMAL)
+		}
 
 		// Insert referral earn
 		for i, earn := range []float64{0.1, 0.03} {
 			if len(account.Referrals) > i {
-				_, err := r.DB.Exec("INSERT INTO referral_earn(address, block_number, amount, time_stamp) VALUES (?, ?, ?, ?)",
+				_, err := r.DB.Exec("INSERT INTO referral_earn(address, transaction_hash, amount, time_stamp) VALUES (?, ?, ?, ?)",
 					account.Referrals[i],
-					input.BlockNumber,
+					input.Hash,
 					amount*earn,
-					input.TimeStamp,
+					timeStamp,
 				)
 
 				if err != nil {
@@ -129,26 +126,12 @@ func (r *mutationResolver) CreateTransaction(ctx context.Context, input model.Ne
 		}
 	}
 
+	fmt.Printf("Created transaction: %v\n", input.Hash)
+
 	return &model.Transaction{
-		BlockNumber:       input.BlockNumber,
-		TimeStamp:         input.TimeStamp,
-		Hash:              input.Hash,
-		Nonce:             input.Nonce,
-		BlockHash:         input.BlockHash,
-		From:              input.From,
-		ContractAddress:   input.ContractAddress,
-		To:                input.To,
-		Value:             input.Value,
-		TokenName:         input.TokenName,
-		TokenDecimal:      input.TokenDecimal,
-		TokenSymbol:       input.TokenSymbol,
-		TransactionIndex:  input.TransactionIndex,
-		Gas:               input.Gas,
-		GasPrice:          input.GasPrice,
-		GasUsed:           input.GasUsed,
-		CumulativeGasUsed: input.CumulativeGasUsed,
-		Input:             input.Input,
-		Confirmations:     input.Confirmations,
+		Hash: input.Hash,
+		From: input.From,
+		To:   input.To,
 	}, nil
 }
 
@@ -169,7 +152,7 @@ func (r *queryResolver) Invite(ctx context.Context, address string) (*model.Invi
 	}, nil
 }
 
-func (r *queryResolver) Referral(ctx context.Context, address *string, days int) (*model.Referral, error) {
+func (r *queryResolver) Referral(ctx context.Context, address string, days int) (*model.Referral, error) {
 	var labels []string
 	var data []float64
 	now := time.Now()
@@ -180,9 +163,9 @@ func (r *queryResolver) Referral(ctx context.Context, address *string, days int)
 		data = append(data, 0)
 	}
 
-	if address == nil || *address == "" {
+	if address == "" {
 		return &model.Referral{
-			Address: "",
+			Address: address,
 			Joined:  0,
 			Earn:    0,
 			Labels:  labels,
@@ -236,11 +219,79 @@ func (r *queryResolver) Referral(ctx context.Context, address *string, days int)
 	}
 
 	return &model.Referral{
-		Address: *address,
+		Address: address,
 		Joined:  joined,
 		Earn:    earn,
 		Labels:  labels,
 		Data:    data,
+	}, nil
+}
+
+func (r *queryResolver) Crowdsale(ctx context.Context, address string) (*model.Crowdsale, error) {
+	var labels []string
+	var data []float64
+
+	recent := 24
+	hour := time.Now().Hour()
+
+	for i := 0; i < recent; i++ {
+		labels = append(labels, fmt.Sprintf("%s:00", leftPad(strconv.Itoa(hour), "0", 2)))
+		data = append(data, 0)
+
+		if hour == 0 {
+			hour = 24
+		}
+		hour -= 1
+	}
+
+	// Query total transaction
+	var total int
+
+	if err := r.DB.QueryRow("SELECT COUNT(1) AS total FROM ecp.token_transaction").
+		Scan(&total); err != nil {
+
+		fmt.Printf("SQL Error - SELECT COUNT(1) AS total FROM ecp.token_transaction: %v\n", err)
+	}
+
+	// Query recent transaction within specified hours
+	query := "SELECT r.hour, SUM(value) AS value FROM (SELECT DATE_FORMAT(FROM_UNIXTIME(time_stamp), '%H') AS hour" +
+		", value FROM token_transaction t WHERE ((UNIX_TIMESTAMP() - t.time_stamp) / 3600) < ?) r GROUP BY r.hour;"
+	results, err := r.DB.Query(query, recent)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for results.Next() {
+		var h string
+		var value string
+
+		if err = results.Scan(&h, &value); err != nil {
+			panic(err)
+		}
+
+		var amount float64
+
+		if value, err := strconv.ParseFloat(value, 10); err == nil {
+			amount = value / math.Pow10(TOKEN_DECIMAL)
+		}
+
+		for i := 0; i < len(labels); i++ {
+			if labels[i] == fmt.Sprintf("%s:00", h) {
+				data[i] = amount
+				break
+			}
+		}
+	}
+
+	recentTransactions := &model.RecentTransactions{
+		Total:  total,
+		Labels: labels,
+		Data:   data,
+	}
+
+	return &model.Crowdsale{
+		RecentTransactions: recentTransactions,
 	}, nil
 }
 
@@ -259,6 +310,14 @@ type queryResolver struct{ *Resolver }
 //  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
 //    it when you're done.
 //  - You have helper methods in this file. Move them out to keep these resolver files clean.
+const (
+	TOKEN_DECIMAL = 18
+)
+
+func (r *queryResolver) RecentTransactions(ctx context.Context, days int) (*model.RecentTransactions, error) {
+	panic(fmt.Errorf("not implemented"))
+}
+
 type (
 	ReferralArray []string
 
@@ -270,6 +329,17 @@ type (
 		Referrals ReferralArray `json:"referrals"`
 	}
 )
+
+func addressIsValid(address string) bool {
+	return len([]rune(address)) != 42
+}
+
+func leftPad(s string, padStr string, overallLen int) string {
+	var padCountInt int
+	padCountInt = 1 + ((overallLen - len(padStr)) / len(padStr))
+	var retStr = strings.Repeat(padStr, padCountInt) + s
+	return retStr[(len(retStr) - overallLen):]
+}
 
 func findAccountByAddress(db *sql.DB, address string) (*model.Account, error) {
 	var e AccountEntity

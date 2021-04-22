@@ -31,34 +31,22 @@ type Transaction {
   hash: String!
   nonce: String!
   blockHash: String!
+  transactionIndex: String!
   from: String!
-  contractAddress: String!
   to: String!
   value: String!
-  tokenName: String!
-  tokenSymbol: String!
-  tokenDecimal: String!
-  transactionIndex: String!
   gas: String!
   gasPrice: String!
-  gasUsed: String!
-  cumulativeGasUsed: String!
+  isError: String!
+  txreceipt_status: String!
   input: String!
+  contractAddress: String!
+  cumulativeGasUsed: String!
+  gasUsed: String!
   confirmations: String!
 }
 
-type Query {
-  account(address: String!): Account!
-  invite(address: String!): Invite!
-  referral(address: String, days: Int!): Referral!
-}
-
-input NewAccount {
-  address: String!
-  inviteCode: String
-}
-
-input NewTransaction {
+type TokenTransaction {
   blockNumber: String!
   timeStamp: String!
   hash: String!
@@ -78,6 +66,36 @@ input NewTransaction {
   cumulativeGasUsed: String!
   input: String!
   confirmations: String!
+}
+
+type RecentTransactions {
+  total: Int!
+  labels: [String!]
+  data: [Float!]
+}
+
+type Crowdsale {
+  recentTransactions: RecentTransactions!
+}
+
+type Query {
+  account(address: String!): Account!
+  invite(address: String!): Invite!
+  referral(address: String!, days: Int!): Referral!
+  crowdsale(address: String!): Crowdsale!
+}
+
+input NewAccount {
+  address: String!
+  inviteCode: String
+}
+
+input NewTransaction {
+  hash: String!
+  from: String!
+  to: String!
+  value: String!
+  referrals: [String!]
 }
 
 type Mutation {

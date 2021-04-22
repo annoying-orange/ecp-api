@@ -10,6 +10,10 @@ type Account struct {
 	Referrals []string `json:"referrals"`
 }
 
+type Crowdsale struct {
+	RecentTransactions *RecentTransactions `json:"recentTransactions"`
+}
+
 type Invite struct {
 	Address string `json:"address"`
 	Link    string `json:"link"`
@@ -21,6 +25,28 @@ type NewAccount struct {
 }
 
 type NewTransaction struct {
+	Hash      string   `json:"hash"`
+	From      string   `json:"from"`
+	To        string   `json:"to"`
+	Value     string   `json:"value"`
+	Referrals []string `json:"referrals"`
+}
+
+type RecentTransactions struct {
+	Total  int       `json:"total"`
+	Labels []string  `json:"labels"`
+	Data   []float64 `json:"data"`
+}
+
+type Referral struct {
+	Address string    `json:"address"`
+	Joined  int       `json:"joined"`
+	Earn    float64   `json:"earn"`
+	Labels  []string  `json:"labels"`
+	Data    []float64 `json:"data"`
+}
+
+type TokenTransaction struct {
 	BlockNumber       string `json:"blockNumber"`
 	TimeStamp         string `json:"timeStamp"`
 	Hash              string `json:"hash"`
@@ -42,32 +68,23 @@ type NewTransaction struct {
 	Confirmations     string `json:"confirmations"`
 }
 
-type Referral struct {
-	Address string    `json:"address"`
-	Joined  int       `json:"joined"`
-	Earn    float64   `json:"earn"`
-	Labels  []string  `json:"labels"`
-	Data    []float64 `json:"data"`
-}
-
 type Transaction struct {
 	BlockNumber       string `json:"blockNumber"`
 	TimeStamp         string `json:"timeStamp"`
 	Hash              string `json:"hash"`
 	Nonce             string `json:"nonce"`
 	BlockHash         string `json:"blockHash"`
+	TransactionIndex  string `json:"transactionIndex"`
 	From              string `json:"from"`
-	ContractAddress   string `json:"contractAddress"`
 	To                string `json:"to"`
 	Value             string `json:"value"`
-	TokenName         string `json:"tokenName"`
-	TokenSymbol       string `json:"tokenSymbol"`
-	TokenDecimal      string `json:"tokenDecimal"`
-	TransactionIndex  string `json:"transactionIndex"`
 	Gas               string `json:"gas"`
 	GasPrice          string `json:"gasPrice"`
-	GasUsed           string `json:"gasUsed"`
-	CumulativeGasUsed string `json:"cumulativeGasUsed"`
+	IsError           string `json:"isError"`
+	TxreceiptStatus   string `json:"txreceipt_status"`
 	Input             string `json:"input"`
+	ContractAddress   string `json:"contractAddress"`
+	CumulativeGasUsed string `json:"cumulativeGasUsed"`
+	GasUsed           string `json:"gasUsed"`
 	Confirmations     string `json:"confirmations"`
 }

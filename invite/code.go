@@ -17,7 +17,7 @@ func GenerageCode(value string) string {
 	}
 	cl := float64(62)
 	b := 5
-
+	
 	codeLen := 8
 
 	rand.Seed(time.Now().UnixNano())
